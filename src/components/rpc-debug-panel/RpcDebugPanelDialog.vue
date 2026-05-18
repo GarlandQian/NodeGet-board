@@ -12,7 +12,6 @@ import { registerRpcDebugEventHandler } from "./rpcDebugStore";
 import RpcDebugPanel from "./RpcDebugPanel.vue";
 import Button from "@/components/ui/button/Button.vue";
 
-const RPC_DEBUG_SHORTCUT_KEY = "F10";
 const DRAG_THRESHOLD_PX = 4;
 const FLOATING_BUTTON_MARGIN_PX = 8;
 
@@ -60,13 +59,11 @@ watch(enabled, (nextEnabled) => {
 });
 
 onMounted(() => {
-  window.addEventListener("keydown", handleShortcut);
   window.addEventListener("resize", handleWindowResize);
   unregisterDebugEvents = registerRpcDebugEventHandler();
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener("keydown", handleShortcut);
   window.removeEventListener("resize", handleWindowResize);
   unregisterDebugEvents?.();
   if (suppressClickTimer != null) window.clearTimeout(suppressClickTimer);
@@ -75,14 +72,6 @@ onBeforeUnmount(() => {
 function toggleOpen() {
   if (!enabled.value) return;
   open.value = !open.value;
-}
-
-function handleShortcut(event: KeyboardEvent) {
-  if (event.key !== RPC_DEBUG_SHORTCUT_KEY || !enabled.value) return;
-
-  event.preventDefault();
-  event.stopPropagation();
-  toggleOpen();
 }
 
 function handleFloatingButtonPointerDown(event: PointerEvent) {
@@ -203,7 +192,7 @@ function suppressClickTemporarily() {
     :style="floatingButtonStyle"
     :aria-expanded="open"
     aria-controls="rpc-debug-panel-dialog"
-    title="RPC 调试面板 (F10)"
+    title="RPC 调试面板"
     @click="handleFloatingButtonClick"
     @pointerdown="handleFloatingButtonPointerDown"
     @pointermove="handleFloatingButtonPointerMove"
@@ -220,7 +209,7 @@ function suppressClickTemporarily() {
   <Dialog v-if="enabled" :open="open" @update:open="open = $event">
     <DialogContent
       id="rpc-debug-panel-dialog"
-      class="flex h-[calc(100vh-3rem)] max-h-[calc(100vh-3rem)] w-[calc(100vw-3rem)] max-w-none flex-col gap-3 overflow-hidden p-3 md:h-[calc(100vh-4rem)] md:max-h-[calc(100vh-4rem)] md:w-[calc(100vw-4rem)] md:p-4"
+      class="flex h-[calc(100vh-3rem)] max-h-[calc(100vh-3rem)] w-[calc(100vw-3rem)] max-w-[calc(100vw-3rem)] flex-col gap-3 overflow-hidden p-3 sm:max-w-[calc(100vw-3rem)] md:h-[calc(100vh-4rem)] md:max-h-[calc(100vh-4rem)] md:w-[calc(100vw-4rem)] md:max-w-[calc(100vw-4rem)] md:p-4"
       :show-close-button="false"
     >
       <DialogHeader
@@ -229,7 +218,7 @@ function suppressClickTemporarily() {
         <div class="min-w-0">
           <DialogTitle class="text-sm">RPC 调试面板</DialogTitle>
           <DialogDescription class="text-xs">
-            F10 显示/关闭，点击遮罩或按 Esc 关闭
+            点击遮罩或按 Esc 关闭
           </DialogDescription>
         </div>
         <Button
