@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { Copy, X } from "lucide-vue-next";
 import type { RpcDebugRecord } from "../rpcDebugStore";
 import { formatDebugPayload } from "../rpcDebugStore";
@@ -54,13 +54,6 @@ const headerRows = computed(() => [
   { label: "备注", value: props.record.note ?? "-" },
 ]);
 
-watch(
-  () => props.record.recordId,
-  () => {
-    activeDetailTab.value = "headers";
-  },
-);
-
 function formatTimestamp(timestamp?: number) {
   if (!timestamp) return "-";
   return new Intl.DateTimeFormat("zh-CN", {
@@ -91,6 +84,19 @@ function activeTabCopyMessage() {
 function copyActiveTab() {
   emit("copy", activeTabCopyText(), activeTabCopyMessage());
 }
+
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key !== "Escape") return;
+  emit("close");
+}
+
+onMounted(() => {
+  window.addEventListener("keydown", handleKeydown);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", handleKeydown);
+});
 </script>
 
 <template>
