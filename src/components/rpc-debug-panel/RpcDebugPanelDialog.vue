@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useDraggable } from "@vueuse/core";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import {
   Dialog,
   DialogContent,
@@ -18,26 +26,25 @@ const FLOATING_BUTTON_MARGIN_PX = 8;
 const systemSettingsStore = useSystemSettingsStore();
 const open = ref(false);
 const buttonRef = ref<HTMLButtonElement | null>(null);
-const buttonPosition = ref<{ x: number; y: number } | null>(null);
+const hasButtonPosition = ref(false);
 const suppressNextClick = ref(false);
-const isDragging = ref(false);
 let suppressClickTimer: number | undefined;
 let unregisterDebugEvents: (() => void) | undefined;
-let dragState:
-  | {
-      pointerId: number;
-      startClientX: number;
-      startClientY: number;
-      startX: number;
-      startY: number;
-      moved: boolean;
-    }
-  | undefined;
+let dragStartPoint: { x: number; y: number } | undefined;
+let dragMoved = false;
 
 const enabled = computed(() => systemSettingsStore.config.rpcDebugPanelEnabled);
 
+const { position: buttonPosition, isDragging } = useDraggable(buttonRef, {
+  buttons: [0],
+  initialValue: { x: 0, y: 0 },
+  onStart: handleFloatingButtonDragStart,
+  onMove: handleFloatingButtonDragMove,
+  onEnd: handleFloatingButtonDragEnd,
+});
+
 const floatingButtonStyle = computed(() => {
-  if (!buttonPosition.value) {
+  if (!hasButtonPosition.value) {
     return {
       right: "1.25rem",
       bottom: "1.25rem",
@@ -53,12 +60,15 @@ const floatingButtonStyle = computed(() => {
 watch(enabled, (nextEnabled) => {
   if (!nextEnabled) {
     open.value = false;
-    isDragging.value = false;
-    dragState = undefined;
+    resetDragTracking();
+    return;
   }
+
+  nextTick(() => syncFloatingButtonPosition());
 });
 
 onMounted(() => {
+  syncFloatingButtonPosition();
   window.addEventListener("resize", handleWindowResize);
   unregisterDebugEvents = registerRpcDebugEventHandler();
 });
@@ -74,62 +84,38 @@ function toggleOpen() {
   open.value = !open.value;
 }
 
-function handleFloatingButtonPointerDown(event: PointerEvent) {
-  if (!enabled.value) return;
-  if (event.pointerType === "mouse" && event.button !== 0) return;
+function handleFloatingButtonDragStart(
+  _position: { x: number; y: number },
+  event: PointerEvent,
+) {
+  if (!enabled.value) return false;
+  if (event.pointerType === "mouse" && event.button !== 0) return false;
 
-  const element = buttonRef.value;
-  if (!element) return;
-
-  const rect = element.getBoundingClientRect();
-  const position = constrainFloatingButtonPosition(
-    buttonPosition.value ?? {
-      x: rect.left,
-      y: rect.top,
-    },
-  );
-
-  buttonPosition.value = position;
-  dragState = {
-    pointerId: event.pointerId,
-    startClientX: event.clientX,
-    startClientY: event.clientY,
-    startX: position.x,
-    startY: position.y,
-    moved: false,
-  };
-  isDragging.value = false;
-  element.setPointerCapture(event.pointerId);
+  syncFloatingButtonPosition();
+  dragStartPoint = { x: event.clientX, y: event.clientY };
+  dragMoved = false;
 }
 
-function handleFloatingButtonPointerMove(event: PointerEvent) {
-  if (!dragState || dragState.pointerId !== event.pointerId) return;
+function handleFloatingButtonDragMove(
+  position: { x: number; y: number },
+  event: PointerEvent,
+) {
+  if (dragStartPoint) {
+    const deltaX = event.clientX - dragStartPoint.x;
+    const deltaY = event.clientY - dragStartPoint.y;
 
-  const deltaX = event.clientX - dragState.startClientX;
-  const deltaY = event.clientY - dragState.startClientY;
-
-  if (!dragState.moved && Math.hypot(deltaX, deltaY) >= DRAG_THRESHOLD_PX) {
-    dragState.moved = true;
-    isDragging.value = true;
+    if (!dragMoved && Math.hypot(deltaX, deltaY) >= DRAG_THRESHOLD_PX) {
+      dragMoved = true;
+    }
   }
 
-  buttonPosition.value = constrainFloatingButtonPosition({
-    x: dragState.startX + deltaX,
-    y: dragState.startY + deltaY,
-  });
+  setFloatingButtonPosition(position);
 }
 
-function handleFloatingButtonPointerEnd(event: PointerEvent) {
-  if (!dragState || dragState.pointerId !== event.pointerId) return;
-
-  const wasDragged = dragState.moved;
-  dragState = undefined;
-  isDragging.value = false;
-
-  if (buttonRef.value?.hasPointerCapture(event.pointerId)) {
-    buttonRef.value.releasePointerCapture(event.pointerId);
-  }
-
+function handleFloatingButtonDragEnd(position: { x: number; y: number }) {
+  const wasDragged = dragMoved;
+  setFloatingButtonPosition(position);
+  resetDragTracking();
   if (wasDragged) suppressClickTemporarily();
 }
 
@@ -145,8 +131,28 @@ function handleFloatingButtonClick(event: MouseEvent) {
 }
 
 function handleWindowResize() {
-  if (!buttonPosition.value) return;
-  buttonPosition.value = constrainFloatingButtonPosition(buttonPosition.value);
+  if (!hasButtonPosition.value) return;
+  setFloatingButtonPosition(buttonPosition.value);
+}
+
+function syncFloatingButtonPosition() {
+  const element = buttonRef.value;
+  if (!element) return;
+
+  const rect = element.getBoundingClientRect();
+  setFloatingButtonPosition(
+    hasButtonPosition.value
+      ? buttonPosition.value
+      : {
+          x: rect.left,
+          y: rect.top,
+        },
+  );
+}
+
+function setFloatingButtonPosition(position: { x: number; y: number }) {
+  buttonPosition.value = constrainFloatingButtonPosition(position);
+  hasButtonPosition.value = true;
 }
 
 function constrainFloatingButtonPosition(position: { x: number; y: number }) {
@@ -172,6 +178,11 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function resetDragTracking() {
+  dragStartPoint = undefined;
+  dragMoved = false;
+}
+
 function suppressClickTemporarily() {
   suppressNextClick.value = true;
   if (suppressClickTimer != null) window.clearTimeout(suppressClickTimer);
@@ -194,10 +205,6 @@ function suppressClickTemporarily() {
     aria-controls="rpc-debug-panel-dialog"
     title="RPC 调试面板"
     @click="handleFloatingButtonClick"
-    @pointerdown="handleFloatingButtonPointerDown"
-    @pointermove="handleFloatingButtonPointerMove"
-    @pointerup="handleFloatingButtonPointerEnd"
-    @pointercancel="handleFloatingButtonPointerEnd"
   >
     <span
       class="h-2.5 w-2.5 rounded-full"
