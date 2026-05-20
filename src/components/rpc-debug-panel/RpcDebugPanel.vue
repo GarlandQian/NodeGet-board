@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { toast } from "vue-sonner";
 import { useBackendStore } from "@/composables/useBackendStore";
+import { Badge } from "@/components/ui/badge";
 import { type RpcDebugRecord, useRpcDebugStore } from "./rpcDebugStore";
 import { rpcDebugTabs } from "./helpers";
 import type { RpcDebugTabKey } from "./types";
@@ -47,50 +48,61 @@ function handleComposerSourceOpen(recordId: string) {
 
 <template>
   <section
-    class="flex flex-col h-full overflow-hidden rounded-lg border max-h-full bg-background shadow-sm"
+    class="flex h-full max-h-full flex-col overflow-hidden rounded-lg border bg-background shadow-sm"
   >
-    <header class="flex-none flex h-16 items-center gap-3 border-b px-6">
-      <div class="text-base font-semibold">NodeGet RPC 调试</div>
-      <span
-        class="inline-flex h-7 items-center rounded-md px-3 text-xs font-medium ring-1"
-        :class="
-          debugStore.activeConnectionCount.value > 0
-            ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
-            : 'bg-muted text-muted-foreground ring-border'
-        "
-      >
-        WS
-        {{ debugStore.activeConnectionCount.value > 0 ? "已连接" : "待连接" }}
-      </span>
-      <span
-        class="inline-flex h-7 items-center rounded-md bg-muted px-3 text-xs ring-1 ring-border"
-      >
-        {{ latencyLabel }}
-      </span>
-      <span class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-        {{ connectionLabel }}
-      </span>
+    <header
+      class="flex min-h-12 flex-none items-center justify-between gap-3 border-b px-4 py-1.5"
+    >
+      <nav class="flex shrink-0 items-center gap-1 rounded-md bg-muted/60 p-1">
+        <button
+          v-for="tab in rpcDebugTabs"
+          :key="tab.key"
+          type="button"
+          class="h-7 rounded px-2.5 text-xs font-medium text-muted-foreground transition hover:bg-background hover:text-foreground"
+          :class="
+            activeTab === tab.key
+              ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground'
+              : ''
+          "
+          @click="activeTab = tab.key"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
+
+      <div class="flex min-w-0 flex-none flex-col items-end gap-0.5">
+        <div class="flex min-w-0 items-center gap-1.5">
+          <div class="shrink-0 text-sm leading-none font-semibold">
+            NodeGet RPC 调试
+          </div>
+          <Badge
+            :variant="
+              debugStore.activeConnectionCount.value > 0
+                ? 'default'
+                : 'destructive'
+            "
+            class="h-5 rounded-md px-2 text-[11px] leading-none"
+          >
+            WS
+            {{ debugStore.activeConnectionCount.value > 0 ? "就绪" : "断开" }}
+          </Badge>
+          <Badge
+            variant="secondary"
+            class="h-5 rounded-md px-2 text-[11px] leading-none"
+          >
+            {{ latencyLabel }}
+          </Badge>
+        </div>
+        <span
+          class="max-w-md truncate text-[11px] leading-none text-muted-foreground"
+        >
+          {{ connectionLabel }}
+        </span>
+      </div>
     </header>
 
-    <nav class="flex-none flex h-13 items-center gap-2 border-b px-6">
-      <button
-        v-for="tab in rpcDebugTabs"
-        :key="tab.key"
-        type="button"
-        class="h-9 rounded-md px-4 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
-        :class="
-          activeTab === tab.key
-            ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground'
-            : ''
-        "
-        @click="activeTab = tab.key"
-      >
-        {{ tab.label }}
-      </button>
-    </nav>
-
     <!-- tab content -->
-    <div class="flex-auto inset-0 overflow-hidden">
+    <div class="inset-0 flex-auto overflow-hidden">
       <RpcNetworkView
         v-if="activeTab === 'network'"
         @copy="copyText"

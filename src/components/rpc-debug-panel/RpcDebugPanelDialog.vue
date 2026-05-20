@@ -198,7 +198,7 @@ function suppressClickTemporarily() {
     v-if="enabled"
     ref="buttonRef"
     type="button"
-    class="fixed z-[60] inline-flex h-11 touch-none select-none items-center gap-2 rounded-full border bg-background/95 px-4 text-sm font-medium shadow-lg backdrop-blur transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    class="fixed z-60 inline-flex h-11 touch-none items-center gap-2 rounded-full border bg-background/95 px-4 text-sm font-medium shadow-lg backdrop-blur transition select-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
     :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
     :style="floatingButtonStyle"
     :aria-expanded="open"
