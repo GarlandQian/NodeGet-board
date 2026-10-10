@@ -197,7 +197,9 @@ function fetchVersion() {
   return fetch(`https://api.github.com/repos/${repo}/releases`)
     .then((r) => r.json())
     .then((r) =>
-      (r as { tag_name: string }[])
+      // 只取正式版：预发布（rc / beta）和 nightly 不参与"最新版本"与版本选择
+      (r as { tag_name: string; prerelease: boolean; draft: boolean }[])
+        .filter((v) => !v.prerelease && !v.draft)
         .map((v) => v.tag_name)
         .filter((v) => v.startsWith("v")),
     )
