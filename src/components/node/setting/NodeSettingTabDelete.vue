@@ -30,6 +30,7 @@ import {
   type splitConfig,
 } from "@/composables/useAgentConfig";
 import { compareVersions } from "compare-versions";
+import { coreVersion, splitNodeVersion } from "@/utils/nodeVersion";
 import {
   agentTokenName,
   withTokenName,
@@ -90,10 +91,6 @@ function setStep(i: number, status: "running" | "done") {
   progress.value = Math.round(((i + (status === "done" ? 1 : 0)) / 4) * 100);
 }
 
-function extractVersion(version: string) {
-  return version.split("-")[0] || "";
-}
-
 async function handleDelete() {
   const rpc = makeRpcFunction();
 
@@ -102,7 +99,10 @@ async function handleDelete() {
     toast.error("未成功获得版本号，请检查主控是否在线");
     return;
   }
-  const version = extractVersion(currentBackendInfo.value?.version);
+  // 版本太老的检查按数字部分判断，rc、nightly 和同号正式版一样算支持
+  const version = coreVersion(
+    splitNodeVersion(currentBackendInfo.value?.version).version,
+  );
   if (compareVersions(version, "0.3.3") < 0) {
     toast.error("主控版本号太低，请先将版本号升级到0.3.3以上");
     return;
