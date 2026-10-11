@@ -16,8 +16,19 @@ const { currentBackend } = useBackendStore();
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
 interface RpcErrorShape {
+  code?: unknown;
   message?: unknown;
   data?: unknown;
+}
+
+// 服务端返回的 JSON-RPC 错误，保留错误码，调用方可以据此判断错误类型
+export class RpcError extends Error {
+  code?: number;
+
+  constructor(message: string, code?: unknown) {
+    super(message);
+    if (typeof code === "number") this.code = code;
+  }
 }
 
 interface WsRpcMessage {
@@ -176,7 +187,10 @@ class WsConnection {
 
     if (msg.error) {
       req.reject(
-        new Error(formatRpcError(msg.error) || `${req.method} rpc error`),
+        new RpcError(
+          formatRpcError(msg.error) || `${req.method} rpc error`,
+          (msg.error as RpcErrorShape).code,
+        ),
       );
       return;
     }

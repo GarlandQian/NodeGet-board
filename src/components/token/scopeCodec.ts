@@ -1,3 +1,4 @@
+import { decodeTokenUsername, encodeTokenUsername } from "@/lib/tokenUsername";
 import type {
   PermissionEntry,
   Token,
@@ -172,7 +173,7 @@ export const buildCredentialPayload = (
   const password = source.password.trim();
 
   return {
-    ...(username ? { username } : {}),
+    ...(username ? { username: encodeTokenUsername(username) } : {}),
     ...(password ? { password } : {}),
   };
 };
@@ -207,7 +208,7 @@ export const mapTokenDetailToForm = (detail: TokenDetail | null): Token => {
 
   return {
     version: detail.version ?? 1,
-    username: detail.username ?? "",
+    username: decodeTokenUsername(detail.username ?? ""),
     password: detail.password ?? "",
     timestamp_from: detail.timestamp_from ?? 0,
     timestamp_to: detail.timestamp_to ?? 0,

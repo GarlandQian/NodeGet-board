@@ -30,6 +30,10 @@ import {
   type splitConfig,
 } from "@/composables/useAgentConfig";
 import { compareVersions } from "compare-versions";
+import {
+  agentTokenName,
+  withTokenName,
+} from "@/components/agents/generateToken";
 
 const props = defineProps<{ uuid: string }>();
 
@@ -133,10 +137,12 @@ async function handleDelete() {
 
   try {
     // disable token, stop data report
-    await rpc("token_delete", {
-      token: currentBackend.value?.token,
-      target_token: `[agent]:${props.uuid}`,
-    });
+    await withTokenName(agentTokenName(props.uuid), (target_token) =>
+      rpc("token_delete", {
+        token: currentBackend.value?.token,
+        target_token,
+      }),
+    );
   } catch {}
   setStep(0, "done");
 
