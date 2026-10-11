@@ -2,6 +2,7 @@
 import { ref, computed, watch, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
+import { toast } from "vue-sonner";
 import {
   Loader2,
   CircleCheckBig,
@@ -268,6 +269,10 @@ const handleNext = async () => {
   if (step.value === 1) {
     // 预生成 token
     generatedToken.value = (await reGenerateToken(nodeUuid.value)) || "";
+    if (!generatedToken.value) {
+      toast.error("预生成 token 失败，可能会导致安装失败，请重试");
+      return;
+    }
     step.value = 2;
     loadCrons();
   } else if (step.value === 2) {
