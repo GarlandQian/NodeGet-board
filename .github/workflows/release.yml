@@ -3,6 +3,10 @@ name: release
 # 正式版和预发布：手动触发，版本号取自 package.json 的 version，tag 为 v + 版本号。
 # 版本号带预发布后缀（如 0.2.0-rc.1、0.2.0-beta.1）时发布为预发布：不标记为 Latest。
 # 不勾选 publish_release 时只构建，用于试跑。
+#
+# 发布日志由 GitHub 自动生成：列出上一个版本之后合并的 PR。上一个版本是 GitHub 按提交历史判断的，
+# 所以发版时「Use workflow from」要选 main：上一个版本的 tag 在 main 的历史里，起点才是对的；
+# 从 dev 发的话，起点可能错到更早的版本，日志里会列出大量早已发布过的 PR。
 
 on:
   workflow_dispatch:
@@ -93,4 +97,6 @@ jobs:
           target_commitish: ${{ github.sha }}
           prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
           make_latest: ${{ needs.prepare.outputs.prerelease != 'true' }}
+          # 让 GitHub 按上一个版本到本版本之间合并的 PR 自动生成发布日志
+          generate_release_notes: true
           files: dist/*
