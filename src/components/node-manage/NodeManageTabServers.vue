@@ -43,8 +43,14 @@ import { useLifecycle } from "@/composables/useLifecycle";
 import { useTask } from "@/composables/useTask";
 import { delay } from "@/lib/delay";
 import VersionDialog from "@/components/node-manage/VersionDialog.vue";
+import VersionBadge from "@/components/node-manage/VersionBadge.vue";
 import ShareDialog from "@/components/node-manage/ShareDialog.vue";
 import { compareVersions } from "compare-versions";
+import {
+  coreVersion,
+  isSameVersion,
+  splitNodeVersion,
+} from "@/utils/nodeVersion";
 import { getWsConnection } from "@/composables/useWsConnection";
 import codeCopy from "@/components/node-manage/codeCopy.vue";
 
@@ -98,8 +104,9 @@ const handleSelect = async (backend: Backend) => {
   location.reload();
 };
 
-function extractVersion(version: string) {
-  return version.split("-")[0] || "";
+// 主控的版本号，保留 -rc.1、-nightly.… 这类后缀，不含提交号
+function serverVersion(rawVersion: string | undefined | null) {
+  return splitNodeVersion(rawVersion || "").version;
 }
 
 const latestVersion = computed(() => {
@@ -132,13 +139,15 @@ async function confirmVersion(version: string) {
     return;
   }
 
-  const oldVersion = extractVersion(backend.version || "");
-  if (compareVersions(oldVersion, "0.1.3") < 0) {
+  const oldVersion = serverVersion(backend.version);
+  // 太老的版本不支持 API 升级，按数字部分判断，rc、nightly 和同号正式版一样算支持
+  if (compareVersions(coreVersion(oldVersion), "0.1.3") < 0) {
     toast.error("Server version is too old, not supported");
     return;
   }
 
-  if (compareVersions(version, oldVersion) === 0) {
+  // 后缀不同就不算同一个版本，所以 nightly、rc 主控可以升级到同号的正式版
+  if (isSameVersion(version, oldVersion)) {
     toast.info("Already using this version");
     return;
   }
@@ -197,7 +206,9 @@ function fetchVersion() {
   return fetch(`https://api.github.com/repos/${repo}/releases`)
     .then((r) => r.json())
     .then((r) =>
-      (r as { tag_name: string }[])
+      // 只取正式版：预发布（rc / beta）和 nightly 不参与"最新版本"与版本选择
+      (r as { tag_name: string; prerelease: boolean; draft: boolean }[])
+        .filter((v) => !v.prerelease && !v.draft)
         .map((v) => v.tag_name)
         .filter((v) => v.startsWith("v")),
     )
@@ -302,13 +313,15 @@ fetchVersion();
             <TableCell class="text-muted-foreground">
               <template v-if="!upgradeStatus.has(backend.url)">
                 <span :title="serverInfo[backend.url]?.version || ''">
-                  {{ (serverInfo[backend.url]?.version ?? "--").slice(0, 20) }}
+                  {{ serverVersion(serverInfo[backend.url]?.version) || "--" }}
                 </span>
                 <template v-if="serverInfo[backend.url]?.version">
                   <TooltipProvider
                     v-if="
                       compareVersions(
-                        extractVersion(serverInfo[backend.url]?.version || ''),
+                        coreVersion(
+                          serverVersion(serverInfo[backend.url]?.version),
+                        ),
                         '0.1.3',
                       ) < 0
                     "
@@ -335,27 +348,11 @@ fetchVersion();
                     </Tooltip>
                   </TooltipProvider>
 
-                  <template v-else-if="availableVersions.length">
-                    <Badge
-                      variant="outline"
-                      v-if="
-                        compareVersions(
-                          extractVersion(
-                            serverInfo[backend.url]?.version || '',
-                          ),
-                          latestVersion,
-                        ) < 0
-                      "
-                      class="ml-2 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                      >可更新</Badge
-                    >
-                    <Badge
-                      variant="outline"
-                      v-else
-                      class="ml-2 bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
-                      >最新版本</Badge
-                    >
-                  </template>
+                  <VersionBadge
+                    v-else-if="availableVersions.length"
+                    :version="serverVersion(serverInfo[backend.url]?.version)"
+                    :latest="latestVersion"
+                  />
                 </template>
               </template>
               <template v-else>

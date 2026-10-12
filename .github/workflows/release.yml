@@ -1,0 +1,96 @@
+name: release
+
+# 正式版和预发布：手动触发，版本号取自 package.json 的 version，tag 为 v + 版本号。
+# 版本号带预发布后缀（如 0.2.0-rc.1、0.2.0-beta.1）时发布为预发布：不标记为 Latest。
+# 不勾选 publish_release 时只构建，用于试跑。
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Create/update the GitHub Release"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
+      tag: ${{ steps.release.outputs.tag }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release mode
+        id: release
+        shell: bash
+        env:
+          PUBLISH: ${{ inputs.publish_release }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tag="v${version}"
+
+          # 发布时校验 tag 格式：v + 语义版本，允许预发布后缀如 -rc.1
+          if [[ "${PUBLISH}" == "true" ]]; then
+            if [[ ! "${tag}" =~ ^v[0-9]+(\.[0-9]+)*([-+][0-9A-Za-z.-]+)?$ ]]; then
+              echo "release tag must look like v0.3.7 when publishing, got: ${tag}" >&2
+              exit 1
+            fi
+            # package.json 里的 0.0.0 是占位值，不应该被发布
+            if [[ "${version}" == "0.0.0" ]]; then
+              echo "package.json version is still the placeholder 0.0.0, set a real version before publishing" >&2
+              exit 1
+            fi
+          fi
+
+          # tag 带预发布后缀（如 v0.2.0-rc.1、v0.2.0-beta.1）即为预发布
+          prerelease="false"
+          if [[ "${tag}" =~ ^v[0-9.]+- ]]; then
+            prerelease="true"
+          fi
+
+          echo "publish=${PUBLISH}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    name: Build
+    needs: prepare
+    uses: ./.github/workflows/build.yml
+
+  publish-release:
+    name: Publish GitHub Release
+    needs:
+      - prepare
+      - build
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download package
+        uses: actions/download-artifact@v4
+        with:
+          name: board-package
+          path: dist
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: NodeGet Board ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
+          make_latest: ${{ needs.prepare.outputs.prerelease != 'true' }}
+          files: dist/*
